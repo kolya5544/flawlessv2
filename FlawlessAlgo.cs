@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Flawless2
 {
-    class FlawlessAlgo
+    public class FlawlessAlgo
     {
         public string InitialKey = "flawless";
         public static Random rng = new Random();
