@@ -41,12 +41,7 @@ namespace Flawless2
             try
             {
                 byte[] encBytes = Convert.FromBase64String(toEncrypt);
-                //seperating the checksum from the data
-                byte[] checksum = encBytes.Take(2).ToArray();
-                data = encBytes.TakeLast(encBytes.Length - 2).ToArray();
-                //calculating the data's checksum and checking if everything's fine
-                byte[] dCheck = FlawlessAlgo.CRC16(data);
-                if (bacmp(dCheck, checksum))
+                if (FlawlessAlgo.IsEncrypted(encBytes))
                 {
                     Console.Write("We've detected encrypted contents! Do you wish to encrypt them (1) or decrypt them? (2):");
                     string choice = Console.ReadLine();
