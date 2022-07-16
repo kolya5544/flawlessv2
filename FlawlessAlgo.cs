@@ -12,6 +12,7 @@ namespace Flawless2
     {
         public string InitialKey = "flawless";
         public static Random rng = new Random();
+        public bool LastOperationSuccess = true;
 
         public MemoryStream Encrypt(byte[] contents)
         {
@@ -50,6 +51,8 @@ namespace Flawless2
             output.Write(checksum2);
             output.Position = 0;
 
+            LastOperationSuccess = true;
+            
             return output;
         }
 
@@ -79,6 +82,7 @@ namespace Flawless2
             byte[] contentCheck = new byte[2];
             ms.Position = 2; //skipping first two bytes as we don't care about encryption checksum.
             ms.Read(contentCheck); //taking next two bytes containing content checksum
+            CheckEncAlgo(ref contentCheck, InitialKey); // decrypting content check checksum
             ms.Read(buffer); //reading two bytes (ushort) to buffer
             LenEncAlgo(ref buffer, InitialKey); //decrypts the Length header
             ushort textlen = BitConverter.ToUInt16(buffer);
@@ -102,6 +106,18 @@ namespace Flawless2
 
             output.SetLength(textlen);
             output.Position = 0;
+
+            //now we check
+            var l = output.ToArray();
+            var c = CRC16(l);
+            if (c[0] != contentCheck[0] ||
+                c[1] != contentCheck[1])
+            {
+                LastOperationSuccess = false;
+            } else
+            {
+                LastOperationSuccess = true;
+            }
 
             return output;
         }
