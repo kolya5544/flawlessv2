@@ -26,29 +26,30 @@ namespace Flawless2
             {
                 //here we make sure the vulnerability of last block being sometimes half empty doesn't exist.
                 FillRandom(ref block);
-                ms.Read(block);
+                ms.Read(block, 0, block.Length);
 
                 EncryptBlock(ref block, index++);
-                blocks.Write(block);
+                blocks.Write(block, 0, block.Length);
             }
 
             blocks.Position = 0;
 
             output.Position = 4;
-            byte[] lenBytes = BitConverter.GetBytes((ushort)contents.Length);
+            byte[] lenBytes = BitConverter.GetBytes((uint)contents.Length);
             LenEncAlgo(ref lenBytes, InitialKey); //encrypts the Length header
 
-            output.Write(lenBytes);
-            output.Write(blocks.ToArray());
+            output.Write(lenBytes, 0, lenBytes.Length);
+            var arr = blocks.ToArray();
+            output.Write(arr, 0, arr.Length);
 
             output.Position = 0;
-            byte[] resultArr = output.ToArray(); resultArr = resultArr.TakeLast(resultArr.Length - 4).ToArray(); //this extracts the encrypted payload
+            byte[] resultArr = output.ToArray(); resultArr = resultArr.ToList().GetRange(4, resultArr.Length - 4).ToArray(); //this extracts the encrypted payload
             byte[] checksum1 = CRC16(resultArr); //this checksum is used to determine if contents should be decrypted
             byte[] checksum2 = CRC16(contents); //this checksum is used to check if contents were decrypted properly. It is encrypted in a way similar to LenEncAlgo encryption.
             CheckEncAlgo(ref checksum2, InitialKey); //encrypts content checksum
             output.Position = 0;
-            output.Write(checksum1);
-            output.Write(checksum2);
+            output.Write(checksum1, 0, checksum1.Length);
+            output.Write(checksum2, 0, checksum2.Length);
             output.Position = 0;
 
             LastOperationSuccess = true;
@@ -63,9 +64,9 @@ namespace Flawless2
             byte[] buffer = new byte[2];
             byte[] data = new byte[content.Length - 4]; //w/out checksums
 
-            ms.Read(encChecksum);
-            ms.Read(buffer);
-            ms.Read(data);
+            ms.Read(encChecksum, 0, encChecksum.Length);
+            ms.Read(buffer, 0, buffer.Length);
+            ms.Read(data, 0, data.Length);
 
             byte[] crc = CRC16(data);
             if (crc[0] == encChecksum[0] && crc[1] == encChecksum[1])
@@ -78,18 +79,18 @@ namespace Flawless2
         public MemoryStream Decrypt(byte[] contents)
         {
             MemoryStream ms = new MemoryStream(contents);
-            byte[] buffer = new byte[2];
+            byte[] buffer = new byte[4];
             byte[] contentCheck = new byte[2];
             ms.Position = 2; //skipping first two bytes as we don't care about encryption checksum.
-            ms.Read(contentCheck); //taking next two bytes containing content checksum
+            ms.Read(contentCheck, 0, contentCheck.Length); //taking next two bytes containing content checksum
             CheckEncAlgo(ref contentCheck, InitialKey); // decrypting content check checksum
-            ms.Read(buffer); //reading two bytes (ushort) to buffer
+            ms.Read(buffer, 0, buffer.Length); //reading two bytes (ushort) to buffer
             LenEncAlgo(ref buffer, InitialKey); //decrypts the Length header
-            ushort textlen = BitConverter.ToUInt16(buffer);
+            uint textlen = BitConverter.ToUInt32(buffer, 0);
 
             //now just reading the remaining blocks
-            var blocks = new byte[ms.Length - 6]; // encryption checksum (2 bytes) + content checksum (2 bytes) + length (2 bytes)
-            ms.Read(blocks);
+            var blocks = new byte[ms.Length - 8]; // encryption checksum (2 bytes) + content checksum (2 bytes) + length (4 bytes)
+            ms.Read(blocks, 0, blocks.Length);
 
             MemoryStream rms = new MemoryStream(blocks);
             MemoryStream output = new MemoryStream();
@@ -97,11 +98,11 @@ namespace Flawless2
             for (int i = 0; i < blocks.Length / 8; i++)
             {
                 byte[] block = new byte[8];
-                rms.Read(block);
+                rms.Read(block, 0, block.Length);
                 //blockList.Add(block);
                 EncryptBlock(ref block, index++);
 
-                output.Write(block);
+                output.Write(block, 0, block.Length);
             }
 
             output.SetLength(textlen);
@@ -126,6 +127,7 @@ namespace Flawless2
         {
             byte[] lenBytesKey = sha256(key + "len"); //here we calculate a special key
             lenBytes[0] ^= lenBytesKey[0]; lenBytes[1] ^= lenBytesKey[1]; //and then use it to encrypt content length header.
+            lenBytes[2] ^= lenBytesKey[2]; lenBytes[3] ^= lenBytesKey[3];
         }
 
         private static void CheckEncAlgo(ref byte[] checkBytes, string key)
